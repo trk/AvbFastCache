@@ -5,7 +5,7 @@ AvbFastCache Module
 * [İskender TOTOĞLU](http://altivebir.com)
 * [phpfastcache](http://www.phpfastcache.com/)
 
-**Example Config File :**
+**Usage Almost Like original phpfastcache library, added some function to use WireCache also :**
 
 * Just changed **get()** to **getCache()** and **set()** to **setCache()** methods, because its owerwriting other methods. Added **getSet()** function like core **WireCache::get()**
 * Added a hook method after **Page::save()** for save last modified time and saved template modified time.
