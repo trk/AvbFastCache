@@ -43,7 +43,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'AvbFastCache Module',
             'summary' => __('Allow to use "phpfastcache" or "WireCache" Library with ProcessWire'),
-            'version' => 2,
+            'version' => 3,
             'author' => 'İskender TOTOĞLU | @ukyo(community), @trk (Github), http://altivebir.com.tr',
             'href' => 'https://github.com/trk/AvbFastCache',
             'icon' => 'clock-o',
@@ -72,8 +72,6 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         if($this->storage === 'WireCache') {
             $this->fastcache = wire('cache');
         } else {
-            // $this->pages->addHookAfter('save', $this, '_setSavePageModifiedData');
-
             // phpFastCache Library
             require_once(__DIR__."/Libraries/phpfastcache/3.0.0/phpfastcache.php");
 
@@ -129,11 +127,11 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     public function _setPageModified($event) {
         // Get Variables
         $parent_id = $this->input->post->parent_id;
-        $move_id = $this->input->post->id; // This id included inside "$ids", no need extra use
+        $move_id = $this->input->post->id;
         $ids = str_replace(',', '|', $this->input->post->sort);
 
         $ids .= $parent_id;
-        if(!strpos($ids, $move_id)) $ids .= '|'.$move_id;
+        if(!strpos($ids, $move_id)) $ids .= '|'.$move_id; // This id included inside "$ids", but need to be sure !
         // Set selector for ids
         $ids = "id={$ids}";
         $this->message("Sorted pages ids selector : {$ids}", Notice::log);
@@ -153,9 +151,8 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      */
     public function getSet($keyword, $func = null) {
         if($this->storage === 'WireCache' || $this->storage === 'sqlite') {
-            $keyword = $keyword;
             $expire = $this->cacheExpireTime;
-            return wire('cache')->get($keyword, $expire, $func);
+            return wire('cache')->get($this->pw_cache_prefix . $keyword, $expire, $func);
         } else {
             $cacheData = $this->fastcache->get($keyword);
             if(is_null($cacheData)) {
@@ -414,11 +411,16 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     public function getModuleConfigInputfields(array $data) {
 
         if(wire('input')->post->clearCache && wire('input')->post->clearCache == 'clean') {
+            /*
             if($this->storage === 'WireCache') {
                 $this->cleanPwDbCache($this->pw_cache_prefix);
             } else {
                 $this->fastcache->clean();
             }
+            */
+            $this->cleanPwDbCache($this->pw_cache_prefix);
+            $this->fastcache->clean();
+
             $this->message(__('Cache data cleared.'));
         }
 
