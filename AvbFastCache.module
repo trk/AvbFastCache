@@ -48,7 +48,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
             'href' => 'https://github.com/trk/AvbFastCache',
             'icon' => 'clock-o',
             'singular' => true,
-            'autoload' => false,
+            'autoload' => true,
             'requires' => 'ProcessWire>=2.6'
         );
     }
@@ -67,10 +67,12 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     public function init() {
         if(!file_exists($this->cachePath)) $this->___install();
 
+        $this->addHookAfter('ProcessPageSort::execute', $this, '_setPageModified');
+
         if($this->storage === 'WireCache') {
             $this->fastcache = wire('cache');
         } else {
-            $this->pages->addHookAfter('save', $this, '_setSavePageModifiedData');
+            // $this->pages->addHookAfter('save', $this, '_setSavePageModifiedData');
 
             // phpFastCache Library
             require_once(__DIR__."/Libraries/phpfastcache/3.0.0/phpfastcache.php");
@@ -117,6 +119,29 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     public function _setSavePageModifiedData($event) {
         $page = $event->arguments[0];
         $this->getSetModified($page);
+    }
+
+    /**
+     * Hook for Sorted Pages, update sorted pages modified date
+     *
+     * @param $event
+     */
+    public function _setPageModified($event) {
+        // Get Variables
+        $parent_id = $this->input->post->parent_id;
+        $move_id = $this->input->post->id; // This id included inside "$ids", no need extra use
+        $ids = str_replace(',', '|', $this->input->post->sort);
+
+        $ids .= $parent_id;
+        if(!strpos($ids, $move_id)) $ids .= '|'.$move_id;
+        // Set selector for ids
+        $ids = "id={$ids}";
+        $this->message("Sorted pages ids selector : {$ids}", Notice::log);
+        // Loop and save sorted pages by given {$ids}
+        foreach(wire('pages')->find($ids) as $page) {
+            $page->save();
+            $this->message("Page modified date updated for sorted page, sorted page is :: id={$page->id} | title={$page->title}.", Notice::log);
+        }
     }
 
     /**
