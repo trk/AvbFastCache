@@ -127,7 +127,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      * @return mixed|string
      */
     public function getSet($keyword, $func = null) {
-        if($this->storage === 'WireCache') {
+        if($this->storage === 'WireCache' || $this->storage === 'sqlite') {
             $keyword = $keyword;
             $expire = $this->cacheExpireTime;
             return wire('cache')->get($keyword, $expire, $func);
