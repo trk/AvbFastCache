@@ -4,7 +4,7 @@
  * Class AvbFastCache
  *
  * @author          : İskender TOTOĞLU, @ukyo (community), @trk (Github)
- * @website         : http://altivebir.com.tr
+ * @website         : http://altivebir.com
  * @projectWebsite  : https://github.com/trk/AvbFastCache
  */
 class AvbFastCache extends WireData implements Module, ConfigurableModule {
@@ -43,7 +43,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'AvbFastCache Module',
             'summary' => __('Allow to use "phpfastcache" or "WireCache" Library with ProcessWire'),
-            'version' => 3,
+            'version' => 5,
             'author' => 'İskender TOTOĞLU | @ukyo(community), @trk (Github), http://altivebir.com.tr',
             'href' => 'https://github.com/trk/AvbFastCache',
             'icon' => 'clock-o',
@@ -140,6 +140,8 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
             $page->save();
             $this->message("Page modified date updated for sorted page, sorted page is :: id={$page->id} | title={$page->title}.", Notice::log);
         }
+        // $this->message($event, Notice::log);
+        // return $event->object->execute();
     }
 
     /**
@@ -150,17 +152,19 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      * @return mixed|string
      */
     public function getSet($keyword, $func = null) {
+
+        $keyword = $this->pw_cache_prefix . $keyword;
+        $expire = $this->cacheExpireTime;
+
         if($this->storage === 'WireCache' || $this->storage === 'sqlite') {
-            $expire = $this->cacheExpireTime;
-            return wire('cache')->get($this->pw_cache_prefix . $keyword, $expire, $func);
+            return wire('cache')->get($keyword, $expire, $func);
         } else {
             $cacheData = $this->fastcache->get($keyword);
             if(is_null($cacheData)) {
                 if(!is_null($func)) {
-                    // If there is a old cache data clear database record
-                    $this->cleanWireCacheItem($this->pw_cache_prefix . $keyword);
                     // Create new database cache record
-                    $value = wire('cache')->get($this->pw_cache_prefix . $keyword, $this->cacheExpireTime, $func);
+                    $value = wire('cache')->get($keyword, $this->cacheExpireTime, $func);
+
                     if($value !== false) {
                         $this->fastcache->set($keyword, $value, $this->cacheExpireTime);
                         $cacheData = $value;
@@ -332,18 +336,20 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      *
      * @param bool $id
      * @param bool $parent_id
-     * @param bool $templates_id
+     * @param string $template
      * @return mixed|string
      */
-    public function getLastModified($id=false, $parent_id=false, $templates_id=false) {
+    public function getLastModified($id=FALSE, $parent_id=FALSE, $template=NULL) {
         if(!is_null($id)) {
             $where = "";
             if(is_bool($id) != true) {
-                $where = " WHERE";
-                $where .= ($parent_id) ? " parent_id = {$id}" : " id={$id}";
-                $where .= ($templates_id) ? " AND templates_id = {$templates_id}" : "";
+                $where = (!is_null($template)) ? " INNER JOIN templates ON pages.templates_id = templates.id" : "";
+                $where .= " WHERE";
+                $where .= ($parent_id) ? " parent_id={$id}" : " id={$id}";
+                $where .= (!is_null($template)) ? " AND templates.name='{$template}'" : "";
             }
             $results = wire('db')->query("SELECT MAX(modified) as modified FROM pages{$where}");
+            $this->message($where);
             if($results->num_rows > 0) {
                 $result = $results->fetch_assoc();
                 $search = array(' ', '-', ':');
@@ -411,15 +417,12 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     public function getModuleConfigInputfields(array $data) {
 
         if(wire('input')->post->clearCache && wire('input')->post->clearCache == 'clean') {
-            /*
-            if($this->storage === 'WireCache') {
-                $this->cleanPwDbCache($this->pw_cache_prefix);
-            } else {
+
+            if($this->storage != 'WireCache') {
                 $this->fastcache->clean();
             }
-            */
+
             $this->cleanPwDbCache($this->pw_cache_prefix);
-            $this->fastcache->clean();
 
             $this->message(__('Cache data cleared.'));
         }
