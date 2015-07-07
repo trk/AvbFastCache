@@ -64,7 +64,7 @@ class AvbFastCacheConfig extends Wire {
         if(wire('input')->get('clearCache') === 'clearDatabaseCache') {
             $this->deleteDatabaseCacheRecords();
 
-            $this->message(sprintf(__('Total %s database cache records cleared for given "%s" prefix name.'), $databaseRecords, $this->prefix), Notice::log);
+            $this->message(sprintf(__('Total %s database cache records cleared for given (%s) prefix name.'), $databaseRecords, $this->prefix), Notice::log);
 
             wire('session')->redirect(wire('page')->httpUrl.'edit?name=' . wire('input')->get('name'));
         }

@@ -28,11 +28,12 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      * Initialize the module
      *
      */
-    public function init() {
+    public function init($storage="", $config=array()) {
+
         $this->addHookAfter('ProcessPageSort::execute', $this, '_setPageModified');
 
-        if($this->storage === 'cache') {
-            Wire::setFuel('phpFastCache', wire('cache'));
+        if($this->storage === 'cache' || $this->storage === 'sqlite') {
+            $this->phpFastCache = wire('cache');
         } else {
             $this->CachePath = wire('config')->paths->assets . $this->path;
             if(!file_exists($this->CachePath)) $this->___install();
@@ -41,18 +42,25 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
                 require_once(dirname(__FILE__) . self::phpFastCacheLibraryPath);
             }
 
-            phpFastCache::$config = array(
-                "storage" => $this->storage,
-                "default_chmod" => 0777,
-                "htaccess" => true,
-                "path" => $this->CachePath,
-                "securityKey" =>  $this->securityKey,
-                "fallback" => $this->fallback,
-            );
+            if(empty($config)) {
+                $config = phpFastCache::$config = array(
+                    "storage" => $this->storage,
+                    "default_chmod" => 0777,
+                    "htaccess" => true,
+                    "path" => $this->CachePath,
+                    "securityKey" =>  $this->securityKey,
+                    "fallback" => $this->fallback,
+                );
+            }
 
-            // phpFastCache::$disabled = false;
+            $config['storage'] = ($storage != "") ? $storage : $this->storage;
 
-            $this->phpFastCache = phpFastCache();
+            $storage = strtolower($storage);
+            if($storage == "" || $storage == "auto") {
+                $storage = phpFastCache::getAutoClass($config);
+            }
+
+            $this->phpFastCache = phpFastCache($storage, $config);
         }
     }
 
@@ -67,8 +75,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
 
         $keyword = $this->prefix . $keyword;
         $expire = $this->expire;
-
-        if($this->storage === 'WireCache' || $this->storage === 'sqlite') {
+        if($this->storage === 'cache' || $this->storage === 'sqlite') {
             $cache = wire('cache');
             return $cache->get($keyword, $expire, $func);
         } else {
@@ -193,68 +200,26 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Set Modified Data
-     *
-     * @TODO Check this, if don't need delete this function
-     *
-     * @param $page
-     * @return array
-     */
-    protected function getSetModified($page) {
-        if(isset($page)) {
-            $pageName = "page_{$page->id}";
-            $templateName = "template_{$page->template}";
-
-            $_cdata = array(
-                $pageName => $this->phpFastCache->get($pageName),
-                $templateName => $this->phpFastCache->get($templateName)
-            );
-
-            if(is_null($_cdata) || $_cdata[$pageName]['modified'] != $page->modified) {
-                $data = array(
-                    'modified' => $page->modified,
-                );
-
-                if($page->numChildren > 0) {
-                    $data['child_modified'] = $this->getLastModified($page->id, true);
-                }
-
-                $this->phpFastCache->set($pageName, $data, 0);
-                $this->phpFastCache->set($templateName, array('modified' => $page->modified), 0);
-
-                return array(
-                    $pageName => $this->phpFastCache->get($pageName),
-                    $templateName => $this->phpFastCache->get($templateName)
-                );
-            }
-        }
-        return "";
-    }
-
-    /**
      * Get last modified page modified date from given $id, $parent_id, $templates_id or from all
      *
-     * @param bool $id
      * @param bool $parent_id
      * @param string $template
      * @return mixed|string
      */
-    public function getLastModified($id=FALSE, $parent_id=FALSE, $template=NULL) {
-        if(!is_null($id)) {
-            $where = "";
-            if(is_bool($id) != true) {
-                $where = (!is_null($template)) ? " INNER JOIN templates ON pages.templates_id = templates.id" : "";
-                $where .= " WHERE";
-                $where .= ($parent_id) ? " parent_id={$id}" : " id={$id}";
-                $where .= (!is_null($template)) ? " AND templates.name='{$template}'" : "";
-            }
-            $results = wire('db')->query("SELECT MAX(modified) as modified FROM pages{$where}");
-            $this->message($where);
-            if($results->num_rows > 0) {
-                $result = $results->fetch_assoc();
-                $search = array(' ', '-', ':');
-                $replace = array('', '', '');
-                return str_replace($search, $replace, $result['modified']);
+    public function getLastModified($parent_id=FALSE, $template=NULL, $useLanguageID=FALSE) {
+        if(!is_null($parent_id)) {
+            if(is_bool($parent_id) != true) {
+                $where = (!is_null($template) && $template != "") ? " INNER JOIN templates ON pages.templates_id = templates.id" : "";
+                $where .= " WHERE parent_id={$parent_id}";
+                $where .= (!is_null($template) && $template != "") ? " AND templates.name='{$template}'" : "";
+                $qry = "SELECT UNIX_TIMESTAMP(MAX(modified)) as modified FROM pages {$where}";
+                $results = wire('db')->query($qry);
+                if($results->num_rows > 0) {
+                    $result = $results->fetch_assoc();
+                    if(wire('config')->debug) $this->message($qry . " Result is : {$result['modified']}", Notice::log);
+                    if($useLanguageID === TRUE) return $result['modified'] . wire('user')->language->id;
+                    return $result['modified'];
+                }
             }
         }
         return "";
@@ -275,11 +240,11 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         if(!strpos($ids, $move_id)) $ids .= '|'.$move_id; // This id included inside "$ids", but need to be sure !
         // Set selector for ids
         $ids = "id={$ids}";
-        $this->message("Sorted pages ids selector : {$ids}", Notice::log);
+        if(wire('config')->debug) $this->message("Sorted pages ids selector : {$ids}", Notice::log);
         // Loop and save sorted pages by given {$ids}
         foreach(wire('pages')->find($ids) as $page) {
             $page->save();
-            $this->message("Page modified date updated for sorted page, sorted page is :: id={$page->id} | title={$page->title}.", Notice::log);
+            if(wire('config')->debug) $this->message("Page modified date updated for sorted page, sorted page is :: id={$page->id} | title={$page->title}.", Notice::log);
         }
     }
 
@@ -288,7 +253,9 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      *
      */
     public static function getModuleConfigInputfields(array $data) {
-        require(dirname(__FILE__) . '/AvbFastCacheConfig.php');
+        if(!class_exists('AvbFastCacheConfig')) {
+            require(dirname(__FILE__) . '/AvbFastCacheConfig.php');
+        }
         $c = new AvbFastCacheConfig($data);
         return $c->getConfig();
     }
