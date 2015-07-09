@@ -12,8 +12,8 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     const phpFastCacheVersion = '3.0.6';
     const phpFastCacheLibraryPath = "/Libraries/phpfastcache/3.0.0/phpfastcache.php";
 
-    protected $moduleCachePath;
-    protected $fullCachePath;
+    protected static $moduleCachePath;
+    protected static $fullCachePath;
 
     /**
      * AvbFastCache Module Info
@@ -24,7 +24,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'AvbFastCache',
             'summary' => __('Allow to use "phpFastCache" with ProcessWire'),
-            'version' => 9,
+            'version' => 10,
             'author' => 'İskender TOTOĞLU | @ukyo(community), @trk (Github), http://altivebir.com',
             'icon' => 'clock-o',
             'href' => 'https://github.com/trk/AvbFastCache',
@@ -62,9 +62,9 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         $this->addHookAfter('ProcessPageSort::execute', $this, '_setPageModified');
 
         // Create paths and check paths are ok ?
-        $this->moduleCachePath = wire('config')->paths->assets . $this->className . DIRECTORY_SEPARATOR;
-        $this->fullCachePath =  $this->moduleCachePath . $this->path;
-        if(!file_exists($this->fullCachePath)) $this->___install();
+        self::$moduleCachePath = wire('config')->paths->assets . $this->className . DIRECTORY_SEPARATOR;
+        self::$fullCachePath =  self::$moduleCachePath . $this->path;
+        if(!file_exists(self::$fullCachePath)) $this->___install();
 
         // Call phpFastCache Library
         if(!class_exists('phpFastCache')) {
@@ -81,7 +81,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
             "storage"   =>  $this->storage,
             "default_chmod" => 0777,
             "htaccess"      => true,
-            "path"      =>  $this->fullCachePath,
+            "path"      =>  self::$fullCachePath,
             "securityKey"   =>  $this->securityKey,
             "fallback"  => $this->fallback,
         );
@@ -90,15 +90,15 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     /**
      * Get last modified page modified date from given $id, $parent_id, $templates_id or from all
      *
-     * @param bool $parent_id
+     * @param bool $id
      * @param string $template
      * @return mixed|string
      */
-    public function getLastModified($parent_id=FALSE, $template=NULL, $useLanguageID=FALSE) {
-        if(!is_null($parent_id)) {
-            if(is_bool($parent_id) != true) {
+    public function getLastModified($id=FALSE, $template=NULL, $useLanguageID=FALSE) {
+        if(!is_null($id)) {
+            if(is_bool($id) != true) {
                 $where = (!is_null($template) && $template != "") ? " INNER JOIN templates ON pages.templates_id = templates.id" : "";
-                $where .= " WHERE parent_id={$parent_id}";
+                $where .= " WHERE pages.id={$id} OR pages.parent_id={$id}";
                 $where .= (!is_null($template) && $template != "") ? " AND templates.name='{$template}'" : "";
                 $qry = "SELECT UNIX_TIMESTAMP(MAX(modified)) as modified FROM pages {$where}";
                 $results = wire('db')->query($qry);
@@ -149,7 +149,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     /**
      * Configure the AvbFastCache Module
      */
-    public function getModuleConfigInputfields(array $data) {
+    public static function getModuleConfigInputfields(array $data) {
 
         $fields = new InputfieldWrapper();
         $modules = wire('modules');
@@ -197,7 +197,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         $f->attr('value', $data[$fieldName]);
         $f->label = __("Cache Path");
         $f->description = __("You can write a cache path with out start and end a directory separator '/'");
-        $f->notes = sprintf(__("We are putting automatic separator to your cache path, **example: %s** <- this will be -> **%s**"), $data[$fieldName], $this->fullCachePath);
+        $f->notes = sprintf(__("We are putting automatic separator to your cache path, **example: %s** <- this will be -> **%s**"), $data[$fieldName], self::$fullCachePath);
         $f->required = true;
         $fields->add($f);
 
@@ -221,13 +221,14 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         $fields->add($f);
 
         // Cache Info and Clear Cache Button
-        $filesRecords       = $this->getNumberOfFilesAndSizes();
+        $filesRecords       = self::getNumberOfFilesAndSizes();
 
         if(wire('input')->get('clearCache') == 'clearFilesCache') {
-            $cache = phpFastCache($this->storage, $this->getConfig());
+            $avbfastcache = new AvbFastCache();
+            $cache = phpFastCache($data['storage'], $avbfastcache->getConfig());
             $cache->clean();
 
-            $this->message(sprintf(__('Total : %s files deleted and these deleted files size %s.'), $filesRecords['nbfiles'], $filesRecords['bytestotal']), Notice::log);
+            wire()->message(sprintf(__('Total : %s files deleted and these deleted files size %s.'), $filesRecords['nbfiles'], $filesRecords['bytestotal']), Notice::log);
             wire('session')->redirect(wire('page')->httpUrl.'edit?name=' . wire('input')->get('name'));
         }
 
@@ -258,15 +259,15 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      * Install Module Create Cache Path
      */
     protected function ___install() {
-        if(!is_dir($this->moduleCachePath)) @mkdir($this->moduleCachePath, 0755);
-        if(!is_dir($this->fullCachePath)) @mkdir($this->fullCachePath, 0777);
+        if(!is_dir(self::$moduleCachePath)) @mkdir(self::$moduleCachePath, 0755);
+        if(!is_dir(self::$fullCachePath)) @mkdir(self::$fullCachePath, 0777);
     }
 
     /**
      * Uninstall Module and Delete Cache Path
      */
     protected function ___uninstall() {
-        $this->removeCacheDir($this->fullCachePath);
+        $this->removeCacheDir(self::$fullCachePath);
     }
 
     /**
@@ -275,8 +276,8 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      * @param null $path
      * @return array
      */
-    protected function getNumberOfFilesAndSizes($path=null) {
-        if(is_null($path)) $path = $this->fullCachePath;
+    protected static function getNumberOfFilesAndSizes($path=null) {
+        if(is_null($path)) $path = self::$fullCachePath;
 
         if($path != "") {
             $items = new RecursiveDirectoryIterator($path);
