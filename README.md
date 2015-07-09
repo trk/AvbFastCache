@@ -5,33 +5,32 @@ AvbFastCache Module
 * [İskender TOTOĞLU](http://altivebir.com)
 * [phpfastcache](http://www.phpfastcache.com/)
 
-**Usage Almost Like original phpfastcache library, added some function to use WireCache also :**
+**Usage Almost Like original phpfastcache library :**
 
-* Module have **expire date** option and cache **prefix** option, **prefix** for clean database cache records, and **expire date** for manually change expire date from admin panel
-* Just changed **get()** to **getCache()** and **set()** to **setCache()** methods, because its owerwriting other methods. Added **getSet()** function like core **WireCache::get()**
-* Added a hook method after **ProcessPageSort::execute**, because when you sort pages, this action not updating modified dates for sorted pages
+I made some modification on original **phpfastcache** library for use ProcessWire. On my side i tested **files** and **sqlite** its look working well.
 
-**You can use it like ProcessWire WireCache**
+You can set default settings from module setting panel or you can use it like original library, from module setting panel you can set **storage** type, cache **path**, **security key**, **fallback** and also you can delete cached data from module settings panel.
 
-**$modules->AvbFastCache->getSet() function using $cache->get() method for parse ProcessWire data and first step is Database Record, Second step is chosen storage type.**
+**Modicated set function, working like core $cache->get function** this function will check a cached data exist ? if not save cache data and cached data back.
+
 ```php
-$_c = $modules->AvbFastCache;
+// Load Module
+$AvbFastCache = $modules->AvbFastCache;
+// Set cache settings from module
+$_c = phpFastCache($AvbFastCache->storage, $AvbFastCache->getConfig(), $AvbFastCache->expire);
 
-echo $_c->getSet('cacheName', function($page)) {
-    $output = "<h1>{$page->title}</h1>";
-    $output .= "<div>{$page->body}</div>";
+$output = $_c->set("cacheKeyword", function($page)) {
+    $output = '<h1>{$page->title}</h1>';
+    $output .= "<div class='body'>{$page->body}</div>";
     
     return $output;
-}
-
-// Get last modification date for given id
-echo $_c->getLastModified(1);
+});
 
 // Get last modification date for given parent_id, this will check pages parent_id=1 and will return last modified page date
-echo $_c->getLastModified(1, true);
+echo $_c->getLastModified(1);
 
-// Get last modification date for given parent_id, this will check pages parent_id=1 and template=basic-page will return last modified page date
-echo $_c->getLastModified(1, true, 'basic-page);
+// Get last modification date for given parent_id, this will check pages parent_id=1 and template=basic-page will return last modified child page date
+echo $_c->getLastModified(1, 'basic-page);
 ```
 
 You can check **phpfastcache** usage from [phpfastcache wiki](https://github.com/khoaofgod/phpfastcache/wiki) or [phpfastcache offical website](http://www.phpfastcache.com/#example)

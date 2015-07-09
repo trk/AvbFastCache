@@ -11,14 +11,15 @@ require_once(dirname(__FILE__)."/driver.php");
 
 // short function
 if(!function_exists("__c")) {
-	function __c($storage = "", $option = array()) {
-		return phpFastCache($storage, $option);
+	function __c($storage = "", $option = array(), $expire=FALSE) {
+		return phpFastCache($storage, $option, $expire);
 	}
 }
 
 // main function
 if(!function_exists("phpFastCache")) {
-	function phpFastCache($storage = "auto", $config = array()) {
+	function phpFastCache($storage = "auto", $config = array(), $expire=FALSE) {
+        if($expire != FALSE && is_int($expire)) phpFastCache::$expire = $expire; // @TODO Added for use default expire time (changeable), Don't forget when updating library
         $storage = strtolower($storage);
         if(empty($config)) {
             $config = phpFastCache::$config;
@@ -47,6 +48,7 @@ class phpFastCache_instances {
 
 // main class
 class phpFastCache {
+    public static $expire = FALSE; // @TODO Added for use default expire time (changeable), Don't forget when updating library
     public static $disabled = false;
 	public static $config = array(
         "storage"       =>  "", // blank for auto
@@ -79,7 +81,10 @@ class phpFastCache {
     protected static $tmp = array();
     var $instance;
 
-    function __construct($storage = "", $config = array()) {
+    function __construct($storage = "", $config = array(), $expire=FALSE) {
+
+        if($expire != FALSE && is_int($expire)) phpFastCache::$expire = $expire; // @TODO Added for use default expire time (changeable), Don't forget when updating library
+
         if(empty($config)) {
             $config = phpFastCache::$config;
         }
@@ -90,7 +95,7 @@ class phpFastCache {
             $storage = self::getAutoClass($config);
         }
 
-        $this->instance = phpFastCache($storage,$config);
+        $this->instance = phpFastCache($storage,$config,$expire);
     }
 
 

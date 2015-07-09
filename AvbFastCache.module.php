@@ -1,4 +1,4 @@
-<?php
+<?php if(!defined("PROCESSWIRE")) die();
 
 /**
  * Class AvbFastCache
@@ -12,15 +12,56 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     const phpFastCacheVersion = '3.0.6';
     const phpFastCacheLibraryPath = "/Libraries/phpfastcache/3.0.0/phpfastcache.php";
 
-    public $phpFastCache;
-    protected $CachePath;
+    protected $moduleCachePath;
+    protected $fullCachePath;
+
+    /**
+     * AvbFastCache Module Info
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => 'AvbFastCache',
+            'summary' => __('Allow to use "phpFastCache" with ProcessWire'),
+            'version' => 9,
+            'author' => 'İskender TOTOĞLU | @ukyo(community), @trk (Github), http://altivebir.com',
+            'icon' => 'clock-o',
+            'href' => 'https://github.com/trk/AvbFastCache',
+            'singular' => true,
+            'autoload' => true,
+            'requires' => 'ProcessWire>=2.6.1'
+        );
+    }
+
+    /**
+     * Default AvbFastCache Modules Configurations
+     *
+     * @return array
+     */
+    static public function getDefaultData() {
+        return array(
+            'storage' => 'auto',
+            'expire' => 1,
+            'path' => 'avb.fast.cache',
+            'securityKey' => 'auto',
+            'fallback' => 'files'
+        );
+    }
 
     public function __construct() {
+
+        foreach(self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+            // echo $key . " <=> " . $value . "<br />";
+        }
+        /*
         $this->set('storage', 'files');
-        $this->set('prefix', 'cache_');
-        $this->set('path', 'AvbFastCache');
+        $this->set('expire', 1);
+        $this->set('path', 'avbfastcache');
         $this->set('securityKey', 'auto');
         $this->set('fallback', 'files');
+        */
     }
 
 
@@ -28,175 +69,29 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      * Initialize the module
      *
      */
-    public function init($storage="", $config=array()) {
-
+    public function init() {
         $this->addHookAfter('ProcessPageSort::execute', $this, '_setPageModified');
 
-        if($this->storage === 'cache' || $this->storage === 'sqlite') {
-            $this->phpFastCache = wire('cache');
-        } else {
-            $this->CachePath = wire('config')->paths->assets . $this->path;
-            if(!file_exists($this->CachePath)) $this->___install();
+        // Create paths and check paths are ok ?
+        $this->moduleCachePath = wire('config')->paths->assets . $this->className . DIRECTORY_SEPARATOR;
+        $this->fullCachePath =  $this->moduleCachePath . $this->path;
+        if(!file_exists($this->fullCachePath)) $this->___install();
 
-            if(!class_exists('phpFastCache')) {
-                require_once(dirname(__FILE__) . self::phpFastCacheLibraryPath);
-            }
-
-            if(empty($config)) {
-                $config = phpFastCache::$config = array(
-                    "storage" => $this->storage,
-                    "default_chmod" => 0777,
-                    "htaccess" => true,
-                    "path" => $this->CachePath,
-                    "securityKey" =>  $this->securityKey,
-                    "fallback" => $this->fallback,
-                );
-            }
-
-            $config['storage'] = ($storage != "") ? $storage : $this->storage;
-
-            $storage = strtolower($storage);
-            if($storage == "" || $storage == "auto") {
-                $storage = phpFastCache::getAutoClass($config);
-            }
-
-            $this->phpFastCache = phpFastCache($storage, $config);
+        // Call phpFastCache Library
+        if(!class_exists('phpFastCache')) {
+            require_once(dirname(__FILE__) . self::phpFastCacheLibraryPath);
         }
     }
 
-    /**
-     * Get or Set cache data
-     *
-     * @param $keyword
-     * @param null $func
-     * @return mixed|string
-     */
-    public function getSet($keyword, $func = null) {
-
-        $keyword = $this->prefix . $keyword;
-        $expire = $this->expire;
-        if($this->storage === 'cache' || $this->storage === 'sqlite') {
-            $cache = wire('cache');
-            return $cache->get($keyword, $expire, $func);
-        } else {
-            $cacheData = $this->phpFastCache->get($keyword);
-            if(is_null($cacheData)) {
-                if(!is_null($func)) {
-                    $cache = wire('cache');
-                    // Create new database cache record
-                    $value = $cache->get($keyword, $expire, $func);
-
-                    if($value !== false) {
-                        $this->phpFastCache->set($keyword, $value, $expire);
-                        $cacheData = $value;
-                    }
-                }
-            }
-            return $cacheData;
-        }
-    }
-
-    public function setCache($keyword, $value = "", $time = 0, $option = array()) {
-        return $this->phpFastCache->set($keyword, $value, $time, $option);
-    }
-
-    public function getCache($keyword, $option = array()) {
-        return $this->phpFastCache->get($keyword, $option);
-    }
-
-    function getInfo($keyword, $option = array()) {
-        return $this->phpFastCache->getInfo($keyword, $option);
-    }
-
-    function delete($keyword, $option = array()) {
-        return $this->phpFastCache->delete($keyword,$option);
-    }
-
-    function stats($option = array()) {
-        return $this->phpFastCache->stats($option);
-    }
-
-    function clean($option = array()) {
-        return $this->phpFastCache->clean($option);
-    }
-
-    function isExisting($keyword) {
-        return $this->phpFastCache->isExisting($keyword);
-    }
-
-    // todo: search
-    function search($query) {
-        return $this->phpFastCache->search($query);
-    }
-
-    function increment($keyword, $step = 1 , $option = array()) {
-        return $this->phpFastCache->increment($keyword, $step, $option);
-    }
-
-    function decrement($keyword, $step = 1 , $option = array()) {
-        return $this->phpFastCache->decrement($keyword, $step, $option);
-    }
-
-    function touch($keyword, $time = 300, $option = array()) {
-        return $this->phpFastCache->touch($keyword, $time, $option);
-    }
-
-    public function setMulti($list = array()) {
-        $this->phpFastCache->setMulti($list);
-    }
-
-    public function getMulti($list = array()) {
-        return $this->phpFastCache->getMulti($list);
-    }
-
-    public function getInfoMulti($list = array()) {
-        return $this->phpFastCache->getInfoMulti($list);
-    }
-
-    public function deleteMulti($list = array()) {
-        $this->phpFastCache->deleteMulti($list);
-    }
-
-    public function isExistingMulti($list = array()) {
-        return $this->phpFastCache->isExistingMulti($list);
-    }
-
-    public function incrementMulti($list = array()) {
-        return $this->phpFastCache->incrementMulti($list);
-    }
-
-    public function decrementMulti($list = array()) {
-        return $this->phpFastCache->decrementMulti($list);
-    }
-
-    public function touchMulti($list = array()) {
-        return $this->phpFastCache->touchMulti($list);
-    }
-
-    public function setup($config_name,$value = "") {
-        $this->phpFastCache->setup($config_name, $value);
-    }
-
-    /*
-    function __get($name) {
-        return $this->phpFastCache->__get($name);
-    }
-
-    function __set($name, $v) {
-        return $this->phpFastCache->__set($name, $v);
-    }
-
-    public function __call($name, $args) {
-        return $this->phpFastCache->__call($name, $args);
-    }
-    */
-
-    public function getPath($create_path = false) {
-        return $this->phpFastCache->getPath($create_path);
-    }
-
-    public function systemInfo() {
-        return $this->phpFastCache->systemInfo();
+    public function getConfig() {
+        return array(
+            "storage"   =>  $this->storage,
+            "default_chmod" => 0777,
+            "htaccess"      => true,
+            "path"      =>  $this->fullCachePath,
+            "securityKey"   =>  $this->securityKey,
+            "fallback"  => $this->fallback,
+        );
     }
 
     /**
@@ -230,7 +125,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      *
      * @param $event
      */
-    public function _setPageModified($event) {
+    protected function _setPageModified($event) {
         // Get Variables
         $parent_id = $this->input->post->parent_id;
         $move_id = $this->input->post->id;
@@ -249,29 +144,166 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     }
 
     /**
-     * Configure the AvbFastCache Modules
+     * Trace helper
      *
+     * @param $var
+     * @param bool $return
      */
-    public static function getModuleConfigInputfields(array $data) {
-        if(!class_exists('AvbFastCacheConfig')) {
-            require(dirname(__FILE__) . '/AvbFastCacheConfig.php');
+    public function trace($var, $return=false) {
+        echo '<pre>' . print_r($var, $return) .'</pre>';
+    }
+
+    /**
+     * Configure the AvbFastCache Module
+     */
+    public function getModuleConfigInputfields(array $data) {
+
+        $fields = new InputfieldWrapper();
+        $modules = wire('modules');
+        $data = array_merge(self::getDefaultData(), $data);
+
+        // Cache Expire Time
+        $fieldName = "expire";
+        $f = $modules->get('InputfieldInteger');
+        $f->attr('name', $fieldName);
+        $f->attr('value', $data[$fieldName]);
+        $f->attr('min', 0);
+        $f->attr('type', 'number');
+        $f->label = __("Cache Expire Time");
+        $f->notes = __("For example: 0 = unlimited time, 1 = 1 second, 60 = 1 minute, 600 = 10 minutes, 3600 = 1 hour, 86400 = 1 day, 604800 = 1 week, 2419200 = 1 month.");
+        $f->required = true;
+        $fields->add($f);
+
+        // Cache Storage Type
+        $fieldName = "storage";
+        $f = $modules->get('InputfieldSelect');
+        $f->attr('name', $fieldName);
+        $f->label = __("Storage");
+        $f->description = __("auto, files, sqlite, apc, cookie, memcache, memcached, predis, redis, wincache, xcache");
+        $f->required = true;
+        $f->addOptions(array(
+            'auto' => 'auto',
+            'files' => 'files',
+            'sqlite' => 'sqlite',
+            'apc' => 'apc',
+            'cookie' => 'cookie',
+            'memcache' => 'memcache',
+            'memcached' => 'memcached',
+            'predis' => 'predis',
+            'redis' => 'redis',
+            'wincache' => 'wincache',
+            'xcache' => 'xcache'
+        ));
+        $f->value = $data[$fieldName];
+        $fields->add($f);
+
+        // Cache Path
+        $fieldName = "path";
+        $f = $modules->get('InputfieldText');
+        $f->attr('name', $fieldName);
+        $f->attr('value', $data[$fieldName]);
+        $f->label = __("Cache Path");
+        $f->description = __("You can write a cache path with out start and end a directory separator '/'");
+        $f->notes = sprintf(__("We are putting automatic separator to your cache path, **example: %s** <- this will be -> **%s**"), $data[$fieldName], $this->fullCachePath);
+        $f->required = true;
+        $fields->add($f);
+
+        // Security Key
+        $fieldName = "securityKey";
+        $f = $modules->get('InputfieldText');
+        $f->attr('name', $fieldName);
+        $f->attr('value', $data[$fieldName]);
+        $f->label = __("Security Key");
+        $f->description = __("auto will use domain name, set it to 1 string if you use alias domain name");
+        $f->required = true;
+        $fields->add($f);
+
+        // Fallback
+        $fieldName = "fallback";
+        $f = $modules->get('InputfieldText');
+        $f->attr('name', $fieldName);
+        $f->attr('value', $data[$fieldName]);
+        $f->label = __("Fallback");
+        $f->required = true;
+        $fields->add($f);
+
+        // Cache Info and Clear Cache Button
+        $filesRecords       = $this->getNumberOfFilesAndSizes();
+
+        if(wire('input')->get('clearCache') == 'clearFilesCache') {
+            $cache = phpFastCache($this->storage, $this->getConfig());
+            $cache->clean();
+
+            $this->message(sprintf(__('Total : %s files deleted and these deleted files size %s.'), $filesRecords['nbfiles'], $filesRecords['bytestotal']), Notice::log);
+            wire('session')->redirect(wire('page')->httpUrl.'edit?name=' . wire('input')->get('name'));
         }
-        $c = new AvbFastCacheConfig($data);
-        return $c->getConfig();
+
+        $f =$modules->get("InputfieldMarkup");
+        $f->label = __("File Cache Info");
+        $f->icon = 'folder';
+        $f->description = sprintf(__('Total cached files: %s, Used space: %s'), $filesRecords['nbfiles'], $filesRecords['bytestotal']);
+
+        // Hidden Form Field
+        $h = $modules->get("InputfieldHidden");
+        $h->name = "clearFilesCache";
+        $h->value = "clearFilesCache";
+        $f->add($h);
+
+        $fb = $modules->get('InputfieldButton');
+        $fb->icon = "trash";
+        $fb->name = 'clearFilesCache';
+        $fb->value = __('Clear Files Cache');
+        $fb->href = 'edit?name='.wire('input')->get('name').'&clearCache=clearFilesCache';
+        $f->add($fb);
+
+        $fields->add($f);
+
+        return $fields;
     }
 
     /**
      * Install Module Create Cache Path
      */
     protected function ___install() {
-        if(!is_dir($this->CachePath)) @mkdir($this->CachePath, 0777);
+        if(!is_dir($this->moduleCachePath)) @mkdir($this->moduleCachePath, 0755);
+        if(!is_dir($this->fullCachePath)) @mkdir($this->fullCachePath, 0777);
     }
 
     /**
      * Uninstall Module and Delete Cache Path
      */
     protected function ___uninstall() {
-        $this->removeCacheDir($this->CachePath);
+        $this->removeCacheDir($this->fullCachePath);
+    }
+
+    /**
+     * Get Number Of Cached Files and Sizes
+     *
+     * @param null $path
+     * @return array
+     */
+    protected function getNumberOfFilesAndSizes($path=null) {
+        if(is_null($path)) $path = $this->fullCachePath;
+
+        if($path != "") {
+            $items = new RecursiveDirectoryIterator($path);
+
+            $bytestotal=0;
+            $nbfiles=0;
+            foreach (new RecursiveIteratorIterator($items) as $filename => $file) {
+                $filesize = $file->getSize();
+                $bytestotal += $filesize;
+                $nbfiles++;
+            }
+
+            $label  = array('B', 'KB', 'MB', 'GB', 'TB', 'PB');
+            for ($i = 0; $bytestotal >= 1024 AND $i < (count($label) - 1); $bytestotal /= 1024, $i++);
+
+            return array(
+                'nbfiles' => number_format($nbfiles),
+                'bytestotal' => round($bytestotal) . ' ' .$label[$i]
+            );
+        }
     }
 
     /**

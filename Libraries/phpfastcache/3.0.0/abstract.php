@@ -11,11 +11,42 @@ abstract class BasePhpFastCache {
     var $fallback = false;
     var $instant;
 
-    /*
-     * Basic Functions
+    /**
+     * Set and get cached data some function added for work with ProcessWire
+     *
+     * @TODO For work with processwire, Don't forget when updating library
+     *
+     * @param $keyword
+     * @param null $func
+     * @param int $time
+     * @param array $option
+     * @param bool $return
+     * @return bool|null
+     * @throws WireException
      */
+    public function set($keyword, $func = null, $time = 0, $option = array(), $return=TRUE) {
+        // IF we have already cached data return it
+        if($return === TRUE && !is_null($this->get($keyword))) return $this->get($keyword);
+        // Set default expire time
+        if(phpFastCache::$expire != FALSE && is_int(phpFastCache::$expire) && $time == 0) $time = phpFastCache::$expire;
 
-    public function set($keyword, $value = "", $time = 0, $option = array() ) {
+        if(!is_null($func) && is_callable($func)) {
+            // generate the cache now from the given callable function
+            $value = $this->renderCacheValue($func);
+        } else {
+            $value = $func;
+        }
+
+        if(is_object($value)) {
+            if($value instanceof PageArray) {
+                $value = $this->pageArrayToArray($value);
+            } else if(method_exists($value, '__toString')) {
+                $value = (string) $value;
+            } else {
+                throw new WireException("WireCache::save does not know how to cache values of type " . get_class($value));
+            }
+        }
+
         /*
          * Infinity Time
          * Khoa. B
@@ -39,9 +70,130 @@ abstract class BasePhpFastCache {
             "expired_time"  => @date("U") + (Int)$time,
         );
 
-        return $this->driver_set($keyword,$object,$time,$option);
+        $this->driver_set($keyword,$object,$time,$option);
 
+        return $value;
     }
+
+    /**
+     * Render and save a cache value, when given a function to do so
+     *
+     * Provided $func may specify any arguments that correspond with the names of API vars
+     * and it will be sent those arguments.
+     *
+     * Provided $func may either echo or return it's output. If any value is returned by
+     * the function it will be used as the cache value. If no value is returned, then
+     * the output buffer will be used as the cache value.
+     *
+     * @TODO For work with processwire, Don't forget when updating library
+     *
+     * @param callable $func
+     * @return bool|string
+     * @since Version 2.5.28
+     *
+     */
+    protected function renderCacheValue($func) {
+
+        $ref = new ReflectionFunction($func);
+        $params = $ref->getParameters(); // requested arguments
+        $args = array(); // arguments we provide
+
+        foreach($params as $param) {
+            $arg = null;
+            // if requested param is an API variable we will provide it
+            if(preg_match('/\$([_a-zA-Z0-9]+)\b/', $param, $matches)) $arg = Wire()->wire($matches[1]);
+            $args[] = $arg;
+        }
+
+        ob_start();
+
+        if(count($args)) {
+            $value = call_user_func_array($func, $args);
+        } else {
+            $value = $func();
+        }
+
+        $out = ob_get_contents();
+        ob_end_clean();
+
+        if(empty($value) && !empty($out)) $value = $out;
+
+        return $value;
+    }
+
+    /**
+     * Given a PageArray, convert it to a cachable array
+     *
+     * @TODO For work with processwire, Don't forget when updating library
+     *
+     * @param PageArray $items
+     * @return array
+     * @throws WireException
+     * @since Version 2.5.28
+     *
+     */
+    protected function pageArrayToArray(PageArray $items) {
+
+        $templates = array();
+        $ids = array();
+        $pageClasses = array();
+
+        foreach($items as $item) {
+            $templates[$item->template->id] = $item->template->id;
+            $ids[] = $item->id;
+            $pageClass = $item->className();
+            $pageClasses[$pageClass] = $pageClass;
+        }
+
+        if(count($pageClasses) > 1) {
+            throw new WireException("Can't cache multiple page types together: " . implode(', ', $pageClasses));
+        }
+
+        $data = array(
+            'PageArray' => $ids,
+            'template'  => count($templates) == 1 ? reset($templates) : 0,
+        );
+
+        $pageClass = reset($pageClasses);
+        if($pageClass && $pageClass != 'Page') $data['pageClass'] = $pageClass;
+
+        $pageArrayClass = $items->className();
+        if($pageArrayClass != 'PageArray') $data['pageArrayClass'] = $pageArrayClass;
+
+        return $data;
+    }
+
+//    /*
+//     * Basic Functions
+//     */
+//
+//    public function set($keyword, $value = "", $time = 0, $option = array() ) {
+//        /*
+//         * Infinity Time
+//         * Khoa. B
+//         */
+//        if((Int)$time <= 0) {
+//            // 5 years, however memcached or memory cached will gone when u restart it
+//            // just recommended for sqlite. files
+//            $time = 3600*24*365*5;
+//        }
+//        /*
+//         * Temporary disabled phpFastCache::$disabled = true
+//         * Khoa. B
+//         */
+//        if(phpFastCache::$disabled === true) {
+//            return false;
+//        }
+//        $object = array(
+//            "value" => $value,
+//            "write_time"  => @date("U"),
+//            "expired_in"  => $time,
+//            "expired_time"  => @date("U") + (Int)$time,
+//        );
+//
+//        return $this->driver_set($keyword,$object,$time,$option);
+//
+//    }
 
     public function get($keyword, $option = array()) {
         /*
