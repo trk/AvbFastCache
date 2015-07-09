@@ -11,7 +11,7 @@ I made some modification on original **phpfastcache** library for use ProcessWir
 
 You can set default settings from module setting panel or you can use it like original library, from module setting panel you can set **storage** type, cache **path**, **security key**, **fallback** and also you can delete cached data from module settings panel.
 
-**Modicated set function, working like core $cache->get function** this function will check a cached data exist ? if not save cache data and cached data back.
+**Modicated set function, working like core $cache->get function** this function will check a cached data exist ? if not save cache data and return cached data back.
 
 ```php
 // Load Module

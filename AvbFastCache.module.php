@@ -50,18 +50,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
     }
 
     public function __construct() {
-
-        foreach(self::getDefaultData() as $key => $value) {
-            $this->$key = $value;
-            // echo $key . " <=> " . $value . "<br />";
-        }
-        /*
-        $this->set('storage', 'files');
-        $this->set('expire', 1);
-        $this->set('path', 'avbfastcache');
-        $this->set('securityKey', 'auto');
-        $this->set('fallback', 'files');
-        */
+        foreach(self::getDefaultData() as $key => $value) $this->$key = $value;
     }
 
 
@@ -83,6 +72,10 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         }
     }
 
+    /**
+     * Get configs from module config panel
+     * @return array
+     */
     public function getConfig() {
         return array(
             "storage"   =>  $this->storage,
