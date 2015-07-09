@@ -26,11 +26,29 @@ $output = $_c->set("cacheKeyword", function($page)) {
     return $output;
 });
 
-// Get last modification date for given parent_id, this will check pages parent_id=1 and will return last modified page date
-echo $_c->getLastModified(1);
 
-// Get last modification date for given parent_id, this will check pages parent_id=1 and template=basic-page will return last modified child page date
-echo $_c->getLastModified(1, 'basic-page);
+//=> OR
+
+// Do MemCache
+$_c2 = phpFastCache("memcached");
+
+// Write to Cache Save API Calls and Return Cache Data
+echo $_c2->set("identity_keyword", function()) {
+    $results = cURL->get("http://www.youtube.com/api/json/url/keyword/page");
+
+    $output = "";
+    foreach($results as $video) {
+        $output .= $vieo->title; // Output Your Contents HERE
+    }
+
+    return $output;
+}, 3600*24);
+
+// This will check id=1 or parent_id=1 and will return last modified page UNIX_TIMESTAMP as result
+echo $AvbFastCache->getLastModified(1);
+
+// This will check id=1 or parent_id=1 and template=basic-page and will return last modified page UNIX_TIMESTAMP as result
+echo $AvbFastCache->getLastModified(1, 'basic-page);
 ```
 
 You can check **phpfastcache** usage from [phpfastcache wiki](https://github.com/khoaofgod/phpfastcache/wiki) or [phpfastcache offical website](http://www.phpfastcache.com/#example)
