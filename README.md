@@ -51,14 +51,14 @@ echo $_c2->set("identity_keyword", function()) {
 echo $AvbFastCache->getLastModified(1);
 
 // This will check id=1 or parent_id=1 and template=basic-page and will return last modified page UNIX_TIMESTAMP as result
-echo $AvbFastCache->getLastModified(1, 'basic-page);
+echo $AvbFastCache->getLastModified(1, 'basic-page');
 
 // What can you do with last modified dates ? Let me show you an example
 
 // Think you are in news page, $page->id is news page id we are using $user->language->id because if we have multi language website
 // Here getLastModified() function will get last modified date for us, if news page or children pages have any update new cache data will be created automatically
 // Like this you can set expire time 0 unlimited from module panel !
-// Think we are in "new-list" template
+// Think we are in "new-list" template and listing children pages
 $keyword = "newsPage" . $page->id . $user->language->id . $AvbFastCache->getLastModified($page->id, 'news-single');
 
 // Load library with your settings
