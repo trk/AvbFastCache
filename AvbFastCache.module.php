@@ -24,7 +24,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'AvbFastCache',
             'summary' => __('Allow to use "phpFastCache" with ProcessWire'),
-            'version' => 10,
+            'version' => 11,
             'author' => 'İskender TOTOĞLU | @ukyo(community), @trk (Github), http://altivebir.com',
             'icon' => 'clock-o',
             'href' => 'https://github.com/trk/AvbFastCache',
@@ -41,6 +41,11 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      */
     static public function getDefaultData() {
         return array(
+            'updateModified' => 1, // Activate modified date update for sorted pages
+            'updateAllSortedPagesModified' => 0, // Update all posted ids modified (parent_id, moved_id, ids)
+            'updateSortedAndParentModified' => 0, // Update just moved and parent page modified (parent_id, moved_id)
+            'updateSortedAndParentsModified' => 0, // Update moved and all parents of moved page modified (moved_id, wire('pages')->get(moved_id)->parents)
+            'updateSortedParentModified' => 1, // Update only moved parent page modified date ? This will update only (parent_id).
             'storage' => 'auto',
             'expire' => 1,
             'path' => 'avb.fast.cache',
@@ -119,20 +124,55 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      * @param $event
      */
     protected function _setPageModified($event) {
-        // Get Variables
-        $parent_id = $this->input->post->parent_id;
-        $move_id = $this->input->post->id;
-        $ids = str_replace(',', '|', $this->input->post->sort);
+        // If update modified active execute this !
+        if($this->updateModified) {
+            // Get Posted Variables
+            $parent_id = $this->input->post->parent_id;
+            $move_id = $this->input->post->id;
+            $ids = explode(',', $this->input->post->sort);
 
-        $ids .= $parent_id;
-        if(!strpos($ids, $move_id)) $ids .= '|'.$move_id; // This id included inside "$ids", but need to be sure !
-        // Set selector for ids
-        $ids = "id={$ids}";
-        if(wire('config')->debug) $this->message("Sorted pages ids selector : {$ids}", Notice::log);
-        // Loop and save sorted pages by given {$ids}
-        foreach(wire('pages')->find($ids) as $page) {
-            $page->save();
-            if(wire('config')->debug) $this->message("Page modified date updated for sorted page, sorted page is :: id={$page->id} | title={$page->title}.", Notice::log);
+            $updateIds = array();
+
+            // Set sort ids
+            if($this->updateAllSortedPagesModified) {
+                foreach($ids as $sort => $id) $updateIds[(int) $sort] = (int) $id;
+            }
+
+            // Set moved_id
+            if($this->updateSortedAndParentModified || $this->updateAllSortedPagesModified || $this->updateSortedAndParentsModified) {
+                if(!in_array($move_id, $updateIds)) $updateIds[] = $move_id;
+            }
+
+            // Set moved_id parents
+            if($this->updateSortedAndParentsModified) {
+                // Loop parents and check for ids exist ?
+                $parents = wire('pages')->get($move_id)->parents;
+                if($parents) {
+                    foreach($parents as $parent) if(!in_array($parent->id, $updateIds)) $updateIds[] = $parent->id;
+                }
+            }
+
+            // Set moved_id parent
+            if($this->updateSortedParentModified || $this->updateAllSortedPagesModified || $this->updateSortedAndParentModified) {
+                // If parent_id not in {$updateIds} set parent id
+                if(!in_array($parent_id, $updateIds)) $updateIds[] = $parent_id;
+            }
+
+            // Update modified dates
+            if(!empty($updateIds)) {
+                $countIds = count($updateIds);
+                $x=1;
+                $selector = "";
+                // Prepare Update Selector
+                foreach($updateIds as $id) {
+                    $y=$x++;
+                    $separator = ($y!=$countIds) ? " OR " : "";
+                    $selector .= "pages.id={$id}" . $separator;
+                }
+
+                wire('db')->query("UPDATE pages SET pages.modified=NOW() WHERE {$selector}");
+                if(wire('config')->debug) $this->message("HookAfter::ProcessPageSort::execute, modified date updated for given selector : ({$selector})", Notice::log);
+            }
         }
     }
 
@@ -166,6 +206,58 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         $f->notes = __("For example: 0 = unlimited time, 1 = 1 second, 60 = 1 minute, 600 = 10 minutes, 3600 = 1 hour, 86400 = 1 day, 604800 = 1 week, 2419200 = 1 month.");
         $f->required = true;
         $fields->add($f);
+
+        // Update Sorted Pages Wrapper
+        $wrapperSortedPages = $modules->get('InputfieldFieldset');
+        $wrapperSortedPages->label = __('Update sorted pages modified dates ?');
+
+
+        // Option : Activate, Update modified dates for sorted pages
+        $fieldName = "updateModified";
+        $value = empty($data[$fieldName]) ? '' : 'checked';
+        $f = $modules->get('InputfieldCheckbox');
+        $f->label = __("Update sorted pages modified dates ? If not active, hook for ProcessPageSort::execute won't execute !");
+        $f->attr('name', $fieldName);
+        $f->attr('checked',$value );
+        $wrapperSortedPages->add($f);
+
+        // Option : Update all given ids by post
+        $fieldName = "updateAllSortedPagesModified";
+        $value = empty($data[$fieldName]) ? '' : 'checked';
+        $f = $modules->get('InputfieldCheckbox');
+        $f->label = __("Update all posted ids modified dates ? this will update (parent_id, moved_id, ids).");
+        $f->attr('name', $fieldName);
+        $f->attr('checked',$value );
+        $wrapperSortedPages->add($f);
+
+        // Option : Update just moved and parent
+        $fieldName = "updateSortedAndParentModified";
+        $value = empty($data[$fieldName]) ? '' : 'checked';
+        $f = $modules->get('InputfieldCheckbox');
+        $f->label = __("Update just moved and parent page modified dates ? This will update (parent_id, moved_id).");
+        $f->attr('name', $fieldName);
+        $f->attr('checked',$value );
+        $wrapperSortedPages->add($f);
+
+        // Option : Update moved and all parents
+        $fieldName = "updateSortedAndParentsModified";
+        $value = empty($data[$fieldName]) ? '' : 'checked';
+        $f = $modules->get('InputfieldCheckbox');
+        $f->label = __("Update moved and all parents of moved page modified dates ? This will update (moved_id, wire('pages')->get(moved_id)->parents).");
+        $f->attr('name', $fieldName);
+        $f->attr('checked',$value );
+        $wrapperSortedPages->add($f);
+
+        // Option : Update only moved parent
+        $fieldName = "updateSortedParentModified";
+        $value = empty($data[$fieldName]) ? '' : 'checked';
+        $f = $modules->get('InputfieldCheckbox');
+        $f->label = __("Update only moved parent page modified date ? This will update only (parent_id).");
+        $f->attr('name', $fieldName);
+        $f->attr('checked',$value );
+        $wrapperSortedPages->add($f);
+
+        $fields->add($wrapperSortedPages);
 
         // Cache Storage Type
         $fieldName = "storage";
