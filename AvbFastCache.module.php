@@ -43,9 +43,9 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         return array(
             'updateModified' => 1, // Activate modified date update for sorted pages
             'updateAllSortedPagesModified' => 0, // Update all posted ids modified (parent_id, moved_id, ids)
-            'updateSortedAndParentModified' => 0, // Update just moved and parent page modified (parent_id, moved_id)
+            'updateSortedAndParentModified' => 1, // Update just moved and parent page modified (parent_id, moved_id)
             'updateSortedAndParentsModified' => 0, // Update moved and all parents of moved page modified (moved_id, wire('pages')->get(moved_id)->parents)
-            'updateSortedParentModified' => 1, // Update only moved parent page modified date ? This will update only (parent_id).
+            'updateSortedParentModified' => 0, // Update only moved parent page modified date ? This will update only (parent_id).
             'storage' => 'auto',
             'expire' => 1,
             'path' => 'avb.fast.cache',
