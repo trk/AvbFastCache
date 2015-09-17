@@ -264,7 +264,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         $f = $modules->get('InputfieldSelect');
         $f->attr('name', $fieldName);
         $f->label = __("Storage");
-        $f->description = __("auto, files, sqlite, apc, cookie, memcache, memcached, predis, redis, wincache, xcache");
+        $f->description = __("auto, files, sqlite, apc, cookie, memcache, memcached, predis, redis, wincache, xcache, ssdb");
         $f->required = true;
         $f->addOptions(array(
             'auto' => 'auto',
@@ -277,7 +277,8 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
             'predis' => 'predis',
             'redis' => 'redis',
             'wincache' => 'wincache',
-            'xcache' => 'xcache'
+            'xcache' => 'xcache',
+            'ssdb' => 'ssdb'
         ));
         $f->value = $data[$fieldName];
         $fields->add($f);
