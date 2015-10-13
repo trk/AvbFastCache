@@ -9,7 +9,7 @@
  */
 class AvbFastCache extends WireData implements Module, ConfigurableModule {
 
-    const phpFastCacheVersion = '3.0.11';
+    const phpFastCacheVersion = '3.0.14';
     const phpFastCacheLibraryPath = "/Libraries/phpfastcache/3.0.0/phpfastcache.php";
 
     protected static $moduleCachePath;
@@ -24,7 +24,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'AvbFastCache',
             'summary' => __('Allow to use "phpFastCache" with ProcessWire'),
-            'version' => 13,
+            'version' => 14,
             'author' => 'İskender TOTOĞLU | @ukyo(community), @trk (Github), http://altivebir.com',
             'icon' => 'clock-o',
             'href' => 'https://github.com/trk/AvbFastCache',
