@@ -9,7 +9,7 @@
  */
 class AvbFastCache extends WireData implements Module, ConfigurableModule {
 
-    const phpFastCacheVersion = '3.0.19';
+    const phpFastCacheVersion = '3.0.20';
     const phpFastCacheLibraryPath = "/Libraries/phpfastcache/3.0.0/phpfastcache.php";
 
     protected static $moduleCachePath;
@@ -24,7 +24,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         return array(
             'title' => 'AvbFastCache',
             'summary' => __('Allow to use "phpFastCache" with ProcessWire'),
-            'version' => 16,
+            'version' => 17,
             'author' => 'İskender TOTOĞLU | @ukyo(community), @trk (Github), http://altivebir.com',
             'icon' => 'clock-o',
             'href' => 'https://github.com/trk/AvbFastCache',
@@ -64,6 +64,7 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
      *
      */
     public function init() {
+        $this->addHook('Page::_c', $this, '_c');
         $this->addHookAfter('ProcessPageSort::execute', $this, '_setPageModified');
 
         // Create paths and check paths are ok ?
@@ -75,6 +76,52 @@ class AvbFastCache extends WireData implements Module, ConfigurableModule {
         if(!class_exists('phpFastCache')) {
             require_once(dirname(__FILE__) . self::phpFastCacheLibraryPath);
         }
+    }
+
+    public function _c($event) {
+        $setup = $this->getConfig();
+        $storage = $this->storage;
+        $expire = $this->expire;
+
+        if(!empty($event->arguments[0])) {
+            $arguments = $event->arguments[0];
+
+            if(array_key_exists('storage', $arguments)) {
+                $storage = $arguments['storage'];
+            }
+            if(array_key_exists('expire', $arguments)) {
+                $expire = $arguments['expire'];
+            }
+            if(array_key_exists('fallback', $arguments)) {
+                $setup['fallback'] = $arguments['fallback'];
+            }
+            if(array_key_exists('securityKey', $arguments)) {
+                $setup['securityKey'] = $arguments['securityKey'];
+            }
+            if(array_key_exists('htaccess', $arguments)) {
+                $setup['htaccess'] = $arguments['htaccess'];
+            }
+            if(array_key_exists('path', $arguments)) {
+                $setup['path'] = $arguments['path'];
+            }
+            if(array_key_exists('memcache', $arguments)) {
+                $setup['memcache'] = $arguments['memcache'];
+            }
+            if(array_key_exists('redis', $arguments)) {
+                $setup['redis'] = $arguments['redis'];
+            }
+            if(array_key_exists('extensions', $arguments)) {
+                $setup['extensions'] = $arguments['extensions'];
+            }
+        }
+
+        if(!class_exists('phpFastCache')) {
+            require_once(dirname(__FILE__) . self::phpFastCacheLibraryPath);
+        }
+
+        $cache = phpFastCache($storage, $setup, $expire);
+
+        $event->return = $cache;
     }
 
     /**
