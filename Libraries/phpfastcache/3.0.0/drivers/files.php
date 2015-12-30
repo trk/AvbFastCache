@@ -52,15 +52,13 @@ class phpfastcache_files extends  BasePhpFastCache implements phpfastcache_drive
          * Skip Create Sub Folders;
          */
         if($skip == false) {
-            if(!@file_exists($path)) {
-                if(!@mkdir($path,$this->__setChmodAuto())) {
+            //if it doesn't exist, I can't create it, and nobody beat me to creating it:
+            if(!@is_dir($path) && !@mkdir($path,$this->__setChmodAuto()) && !@is_dir($path)) {
                     throw new Exception("PLEASE CHMOD ".$this->getPath()." - 0777 OR ANY WRITABLE PERMISSION!",92);
-                }
-
-            } elseif(!is_writeable($path)) {
-                if(!chmod($path,$this->__setChmodAuto())) {
+            }
+            //if it does exist (after someone beat me to it, perhaps), but isn't writable or fixable:
+            if(@is_dir($path) && !is_writeable($path) && !@chmod($path,$this->__setChmodAuto())) {
                     throw new Exception("PLEASE CHMOD ".$this->getPath()." - 0777 OR ANY WRITABLE PERMISSION!",92);
-                }
             }
         }
 
@@ -70,6 +68,7 @@ class phpfastcache_files extends  BasePhpFastCache implements phpfastcache_drive
 
     function driver_set($keyword, $value = "", $time = 300, $option = array() ) {
         $file_path = $this->getFilePath($keyword);
+        $tmp_path = $file_path . ".tmp";
       //  echo "<br>DEBUG SET: ".$keyword." - ".$value." - ".$time."<br>";
         $data = $this->encode($value);
 
@@ -86,16 +85,33 @@ class phpfastcache_files extends  BasePhpFastCache implements phpfastcache_drive
             }
         }
 
-        if($toWrite == true) {
+        $written = true;
+        /*
+         * write to intent file to prevent race during read; race during write is ok
+         * because first-to-lock wins and the file will exist before the writer attempts
+         * to write.
+         */
+        if($toWrite == true && !@file_exists($tmp_path) && !@file_exists($file_path)) {
                 try {
-                    $f = @fopen($file_path, "w+");
-                    fwrite($f, $data);
-                    fclose($f);
+                    $f = @fopen($tmp_path, "c");
+                    if ($f) {
+                    if (flock($f,LOCK_EX| LOCK_NB))  {
+                            $written = ($written && fwrite($f, $data));
+                            $written = ($written && fflush($f));
+                            $written = ($written && flock($f, LOCK_UN));
+                    } else {
+                        //arguably the file is being written to so the job is done
+                            $written = false;
+                    }
+                        $written = ($written && @fclose($f));
+                        $written = ($written && @rename($tmp_path,$file_path));
+                    }
                 } catch (Exception $e) {
                     // miss cache
-                    return false;
+                    $written = false;
                 }
         }
+        return $written;
     }
 
     function driver_get($keyword, $option = array()) {
